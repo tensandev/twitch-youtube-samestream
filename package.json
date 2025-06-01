@@ -1,0 +1,53 @@
+{
+  "name": "twitch-youtube-mirror-stream",
+  "version": "1.0.0",
+  "description": "🎮✨ Twitch to YouTube mirror streaming CLI tool",
+  "main": "dist/index.js",  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/index.js",
+    "stop": "npm run build && node dist/index.js stop",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc -w",
+    "token": "ts-node tools/generate-twitch-token.ts",
+    "token:auto": "ts-node tools/twitch-token-manager.ts ensure",
+    "token:get": "ts-node tools/twitch-token-manager.ts get",
+    "token:validate": "ts-node tools/twitch-token-manager.ts validate",
+    "token:info": "ts-node tools/twitch-token-manager.ts info",
+    "token:clear": "ts-node tools/twitch-token-manager.ts clear",
+    "youtube": "node tools/setup-youtube-api.js",
+    "thumbnail": "ts-node tools/thumbnail-manager.ts",
+    "config": "node config-manager.js",
+    "test:archive": "npm run build && node tests/test-archive-processing.js",
+    "setup": "npm run build && npm run token:auto && npm run youtube"
+  },
+  "keywords": [
+    "twitch",
+    "youtube",
+    "streaming",
+    "mirror",
+    "cli"
+  ],
+  "author": "Stream Mirror Pro",
+  "license": "MIT",
+  "dependencies": {
+    "@types/express": "^5.0.2",
+    "axios": "^1.6.0",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "dotenv": "^16.3.1",
+    "express": "^5.1.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "googleapis": "^128.0.0",
+    "node-media-server": "^2.6.0",
+    "open": "^10.1.2",
+    "ora": "^5.4.1",
+    "twitch-streamlink-extractor": "^3.1.2",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@types/ws": "^8.5.6",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  }
+}
