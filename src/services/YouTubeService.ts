@@ -1159,6 +1159,58 @@ export class YouTubeService {
   }
 
   /**
+   * アーカイブタイトルを生成
+   */
+  private generateArchiveTitle(twitchStream: any, startedAt: Date, titleFormat: string): string {
+    let title = titleFormat;
+    
+    // プレースホルダーの置換
+    title = title.replace(/{originalTitle}/g, twitchStream.title || 'Untitled Stream');
+    title = title.replace(/{streamer}/g, twitchStream.user_name || 'Unknown Streamer');
+    title = title.replace(/{game}/g, twitchStream.game_name || 'Unknown Game');
+    title = title.replace(/{channel}/g, twitchStream.user_login || 'unknown');
+    
+    // 日付関連
+    const now = new Date();
+    title = title.replace(/{date}/g, now.toLocaleDateString('ja-JP'));
+    
+    // 配信時間を計算
+    const duration = Math.floor((now.getTime() - startedAt.getTime()) / 1000 / 60); // 分
+    const hours = Math.floor(duration / 60);
+    const minutes = duration % 60;
+    const durationStr = hours > 0 ? `${hours}時間${minutes}分` : `${minutes}分`;
+    title = title.replace(/{duration}/g, durationStr);
+    
+    return title.substring(0, 100); // YouTubeの文字数制限
+  }
+
+  /**
+   * アーカイブ説明文を生成
+   */
+  private generateArchiveDescription(twitchStream: any, startedAt: Date, descriptionTemplate: string): string {
+    let description = descriptionTemplate;
+    
+    // プレースホルダーの置換
+    description = description.replace(/{originalTitle}/g, twitchStream.title || 'Untitled Stream');
+    description = description.replace(/{streamer}/g, twitchStream.user_name || 'Unknown Streamer');
+    description = description.replace(/{game}/g, twitchStream.game_name || 'Unknown Game');
+    description = description.replace(/{channel}/g, twitchStream.user_login || 'unknown');
+    
+    // 日付関連
+    const now = new Date();
+    description = description.replace(/{date}/g, now.toLocaleDateString('ja-JP'));
+    
+    // 配信時間を計算
+    const duration = Math.floor((now.getTime() - startedAt.getTime()) / 1000 / 60); // 分
+    const hours = Math.floor(duration / 60);
+    const minutes = duration % 60;
+    const durationStr = hours > 0 ? `${hours}時間${minutes}分` : `${minutes}分`;
+    description = description.replace(/{duration}/g, durationStr);
+    
+    return description;
+  }
+
+  /**
    * アーカイブ動画のプライバシー設定を更新
    */
   public async updateArchivePrivacy(videoId: string, privacyStatus: 'public' | 'unlisted' | 'private'): Promise<boolean> {
@@ -1246,74 +1298,76 @@ export class YouTubeService {
   }
 
   /**
-   * アーカイブタイトルを生成
+   * ライブ配信のタイトルを更新（リアルタイム更新用）
    */
-  public generateArchiveTitle(twitchStream: any, startedAt: Date, titleFormat: string): string {
-    const endedAt = new Date();
-    const duration = this.formatDuration(endedAt.getTime() - startedAt.getTime());
-    
-    const replacements: { [key: string]: string } = {
-      '{originalTitle}': twitchStream.title || 'ライブ配信',
-      '{streamer}': twitchStream.user_name || 'Unknown',
-      '{channel}': twitchStream.user_login || 'unknown',
-      '{game}': twitchStream.game_name || 'Unknown',
-      '{date}': startedAt.toLocaleDateString('ja-JP'),
-      '{time}': startedAt.toLocaleTimeString('ja-JP'),
-      '{datetime}': startedAt.toLocaleString('ja-JP'),
-      '{duration}': duration,
-      '{viewers}': twitchStream.viewer_count?.toString() || '0',
-    };
+  public async updateLiveBroadcastTitle(broadcastId: string, newTitle: string): Promise<boolean> {
+    try {
+      logger.youtube(`ライブ配信タイトルを更新中: "${newTitle}"`);
 
-    let generatedTitle = titleFormat;
-    Object.entries(replacements).forEach(([placeholder, value]) => {
-      generatedTitle = generatedTitle.replace(new RegExp(placeholder, 'g'), value);
-    });
+      // まず現在の配信情報を取得
+      const currentBroadcast = await this.youtube.liveBroadcasts.list({
+        part: ['snippet'],
+        id: [broadcastId],
+      });
 
-    return generatedTitle.substring(0, 100); // YouTubeの文字数制限
+      if (!currentBroadcast.data.items || currentBroadcast.data.items.length === 0) {
+        logger.error(`配信ID ${broadcastId} が見つかりません`);
+        return false;
+      }
+
+      const broadcast = currentBroadcast.data.items[0];
+      
+      // タイトルを更新
+      const response = await this.youtube.liveBroadcasts.update({
+        part: ['snippet'],
+        requestBody: {
+          id: broadcastId,
+          snippet: {
+            ...broadcast.snippet,
+            title: newTitle.substring(0, 100), // YouTubeの文字数制限
+          },
+        },
+      });
+
+      if (response.data.id) {
+        logger.success(`ライブ配信タイトルを更新しました: "${newTitle}"`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      logger.error('ライブ配信タイトルの更新に失敗', error as Error);
+      return false;
+    }
   }
 
   /**
-   * アーカイブ説明文を生成
+   * Twitchタイトル変更を検出してYouTubeタイトルを自動更新
    */
-  public generateArchiveDescription(twitchStream: any, startedAt: Date, descriptionTemplate: string): string {
-    const endedAt = new Date();
-    const duration = this.formatDuration(endedAt.getTime() - startedAt.getTime());
-    
-    const replacements: { [key: string]: string } = {
-      '{originalTitle}': twitchStream.title || 'ライブ配信',
-      '{streamer}': twitchStream.user_name || 'Unknown',
-      '{channel}': twitchStream.user_login || 'unknown',
-      '{game}': twitchStream.game_name || 'Unknown',
-      '{date}': startedAt.toLocaleDateString('ja-JP'),
-      '{time}': startedAt.toLocaleTimeString('ja-JP'),
-      '{datetime}': startedAt.toLocaleString('ja-JP'),
-      '{duration}': duration,
-      '{viewers}': twitchStream.viewer_count?.toString() || '0',
-    };
+  public async handleTwitchTitleChange(broadcastId: string, twitchStream: any, previousTitle?: string): Promise<boolean> {
+    try {
+      const currentTitle = twitchStream.title;
+      
+      // タイトルが変更されているかチェック
+      if (previousTitle && currentTitle === previousTitle) {
+        return false; // 変更なし
+      }
 
-    let generatedDescription = descriptionTemplate;
-    Object.entries(replacements).forEach(([placeholder, value]) => {
-      generatedDescription = generatedDescription.replace(new RegExp(placeholder, 'g'), value);
-    });
-
-    return generatedDescription.substring(0, 5000); // YouTubeの文字数制限
-  }
-
-  /**
-   * 配信時間をフォーマット
-   */
-  private formatDuration(milliseconds: number): string {
-    const seconds = Math.floor(milliseconds / 1000);
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}時間${minutes}分${remainingSeconds}秒`;
-    } else if (minutes > 0) {
-      return `${minutes}分${remainingSeconds}秒`;
-    } else {
-      return `${remainingSeconds}秒`;
+      logger.info(`🔄 Twitchタイトル変更を検出: "${previousTitle}" → "${currentTitle}"`, '📝');
+      
+      // 新しいYouTubeタイトルを生成
+      const newYouTubeTitle = this.generateYouTubeTitle(twitchStream);
+      
+      // YouTubeタイトルを更新
+      const success = await this.updateLiveBroadcastTitle(broadcastId, newYouTubeTitle);
+        if (success) {
+        logger.success('YouTubeタイトルの自動更新が完了しました');
+      }
+      
+      return success;
+    } catch (error) {
+      logger.error('タイトル変更処理中にエラーが発生', error as Error);
+      return false;
     }
   }
 }

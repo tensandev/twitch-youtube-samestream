@@ -105,7 +105,6 @@ class TwitchYouTubeMirrorApp {
       process.exit(1);
     }
   }
-
   /**
    * 配信監視を開始
    */
@@ -125,6 +124,10 @@ class TwitchYouTubeMirrorApp {
           // 配信が終了された
           logger.info(`📴 ${channelName} の配信が終了しました`);
           await this.handleStreamEnd();
+          
+        } else if (stream && this.currentStreamingStatus.isStreaming) {
+          // 配信中 - タイトル変更をチェック
+          await this.handleTitleChangeCheck(stream);
         }
         
       } catch (error) {
@@ -308,6 +311,44 @@ class TwitchYouTubeMirrorApp {
       
     } catch (error) {
       logger.error('配信終了処理でエラーが発生', error as Error);
+    }
+  }
+
+  /**
+   * タイトル変更をチェックして処理
+   */
+  private async handleTitleChangeCheck(stream: any): Promise<void> {
+    try {
+      const currentTitle = stream.title;
+      const previousTitle = this.currentStreamingStatus.previousTitle;
+      
+      // タイトルが変更されているかチェック
+      if (previousTitle && currentTitle !== previousTitle) {
+        logger.info(`🔄 Twitchタイトル変更を検出: "${previousTitle}" → "${currentTitle}"`, '📝');
+        
+        // YouTubeライブ配信のタイトルを更新（認証されている場合）
+        if (this.currentStreamingStatus.youtubeBroadcastId) {
+          const success = await this.youtubeService.handleTwitchTitleChange(
+            this.currentStreamingStatus.youtubeBroadcastId,
+            stream,
+            previousTitle
+          );
+          
+          if (success) {
+            this.currentStreamingStatus.lastTitleUpdate = new Date();
+            logger.info('YouTubeタイトルの自動更新が完了しました', '✨');
+          } else {
+            logger.warn('YouTubeタイトルの更新に失敗しました', '⚠️');
+          }
+        }
+      }
+      
+      // 現在のタイトルを保存
+      this.currentStreamingStatus.previousTitle = currentTitle;
+      this.currentStreamingStatus.twitchStream = stream;
+      
+    } catch (error) {
+      logger.error('タイトル変更チェック中にエラーが発生', error as Error);
     }
   }
 

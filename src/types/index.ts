@@ -124,6 +124,8 @@ export interface StreamingStatus {
   youtubeStreamId?: string;     // YouTube ストリームIDを追加
   startedAt?: Date;
   error?: string;
+  previousTitle?: string;       // 前回のタイトル（タイトル変更検出用）
+  lastTitleUpdate?: Date;       // 最後のタイトル更新時刻
 }
 
 // ログレベルの型定義
